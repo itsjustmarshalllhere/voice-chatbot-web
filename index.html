@@ -251,6 +251,8 @@
                 } else if (event.error === 'aborted') {
                     // This error occurs if we manually call abort()
                     updateStatus('You: Recording stopped.', false);
+                } else if (event.error === 'network') { // Add network error handling
+                    updateStatus('You: Network error during speech recognition. Check your connection.', true);
                 }
                 else {
                     updateStatus(`You: Speech recognition error: ${event.error}`, true);
@@ -276,24 +278,34 @@
         // Mic button click handler
         micButton.addEventListener('click', () => {
             console.log('Mic button clicked. Current isRecognizing:', isRecognizing);
+            // Always disable the button immediately to prevent double-clicks
+            micButton.disabled = true; 
+
             if (recognition) {
                 if (isRecognizing) {
                     console.log('Recognition is active. Stopping via abort().');
                     recognition.abort(); // Use abort() for a clean stop
                     // The button will be re-enabled by onerror (if 'aborted') or onend
                 } else {
-                    // Only start if not currently recognizing AND button is not disabled (e.g., by backend processing)
-                    if (!micButton.disabled) {
-                        console.log('Recognition is NOT active. Attempting to start recognition.');
-                        isRecognizing = true; // Set flag immediately before starting
-                        micButton.disabled = true; // Disable button immediately on start attempt
-                        recognition.start();
-                    } else {
-                        console.log('Mic button is disabled, likely processing previous request or an error occurred. Cannot start.');
-                    }
+                    console.log('Recognition is NOT active. Attempting to start recognition.');
+                    isRecognizing = true; // Set flag immediately before starting
+                    // Use a setTimeout(0) to defer the start call slightly
+                    // This can help with race conditions where the browser's internal state
+                    // hasn't fully reset yet, even if `isRecognizing` is false.
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            console.error("Error calling recognition.start() inside setTimeout:", e);
+                            updateStatus('Error starting microphone. Please refresh and try again.', true);
+                            micButton.disabled = false; // Re-enable if start fails
+                            isRecognizing = false; // Reset flag
+                        }
+                    }, 0);
                 }
             } else {
                 console.log('Recognition object does NOT exist. Cannot start/stop.');
+                micButton.disabled = false; // Ensure button is re-enabled if recognition not supported
             }
         });
 
@@ -303,3 +315,4 @@
     </script>
 </body>
 </html>
+
