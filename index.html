@@ -223,10 +223,10 @@
 
             recognition.onstart = () => {
                 console.log('SpeechRecognition: onstart event fired. Mic button should be red.');
-                isRecognizing = true; // Set flag to true
+                // isRecognizing is already set to true in the click handler
                 updateStatus('You: (listening...)');
                 micButton.classList.add('recording');
-                micButton.disabled = false; // Ensure button is re-enabled if it was disabled previously
+                // micButton.disabled is already true from click handler, will be re-enabled later
             };
 
             recognition.onresult = (event) => {
@@ -235,7 +235,7 @@
                 const transcript = event.results[0][0].transcript;
                 updateStatus('You: (processing audio...)');
                 micButton.classList.remove('recording'); // Remove red color quickly
-                micButton.disabled = true; // Disable mic while processing
+                micButton.disabled = true; // Keep mic disabled while processing backend
                 sendTextToBackend(transcript); // Send transcribed text to backend
             };
 
@@ -261,11 +261,9 @@
                 console.log('SpeechRecognition: onend event fired. Recognition session ended.');
                 isRecognizing = false; // Ensure flag is false
                 micButton.classList.remove('recording'); // Ensure button color is reset
-                // Do NOT re-enable micButton.disabled here, as sendTextToBackend handles that
-                // or onerror handles it if there was an error.
-                // If no error and no result (e.g., user just stopped without speaking), re-enable.
-                if (!micButton.disabled) { // Only re-enable if not already disabled by sendTextToBackend
-                     updateStatus('Bot: Ready.'); // Reset status if not processing backend
+                // Only reset status to "Ready" if the button is not disabled (meaning no backend call is pending)
+                if (!micButton.disabled) {
+                     updateStatus('Bot: Ready.'); 
                 }
             };
 
@@ -282,15 +280,16 @@
                 if (isRecognizing) {
                     console.log('Recognition is active. Stopping via abort().');
                     recognition.abort(); // Use abort() for a clean stop
-                    micButton.disabled = true; // Disable immediately to prevent re-clicks during abort
+                    // The button will be re-enabled by onerror (if 'aborted') or onend
                 } else {
-                    // Only start if not currently recognizing AND button is not disabled by a backend call
+                    // Only start if not currently recognizing AND button is not disabled (e.g., by backend processing)
                     if (!micButton.disabled) {
-                        console.log('Recognition is NOT active. Starting recognition.');
+                        console.log('Recognition is NOT active. Attempting to start recognition.');
+                        isRecognizing = true; // Set flag immediately before starting
                         micButton.disabled = true; // Disable button immediately on start attempt
                         recognition.start();
                     } else {
-                        console.log('Mic button is disabled, likely processing previous request. Cannot start.');
+                        console.log('Mic button is disabled, likely processing previous request or an error occurred. Cannot start.');
                     }
                 }
             } else {
@@ -302,3 +301,5 @@
         updateStatus('Bot: Ready.');
         console.log('Initial status set to "Bot: Ready."');
     </script>
+</body>
+</html>
