@@ -137,7 +137,7 @@
         const chatMessages = document.getElementById('chat-messages');
         const statusMessage = document.getElementById('status-message');
 
-        let recognition; // For Web Speech API SpeechRecognition
+        let recognition = null; // Initialize as null, will be created on demand
         let isRecognizing = false; // Flag to track if recognition is active
 
         // Function to display messages in the chat
@@ -211,37 +211,28 @@
             }
         }
 
-        // Initialize Web Speech API SpeechRecognition
-        console.log('--- Initializing Web Speech API ---');
-        if ('webkitSpeechRecognition' in window) {
-            console.log('Web Speech API (webkitSpeechRecognition) IS supported.');
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = false; // Only listen for a single utterance
-            recognition.interimResults = false; // Only return final results
-            recognition.lang = 'en-US'; // Set language
-            console.log('SpeechRecognition object created:', recognition);
-
-            recognition.onstart = () => {
+        // Function to set up SpeechRecognition event handlers
+        function setupRecognitionHandlers(recInstance) {
+            recInstance.onstart = () => {
                 console.log('SpeechRecognition: onstart event fired. Mic button should be red.');
-                // isRecognizing is already set to true in the click handler
+                isRecognizing = true;
                 updateStatus('You: (listening...)');
                 micButton.classList.add('recording');
-                // micButton.disabled is already true from click handler, will be re-enabled later
             };
 
-            recognition.onresult = (event) => {
+            recInstance.onresult = (event) => {
                 console.log('SpeechRecognition: onresult event fired. Processing result.');
-                isRecognizing = false; // Reset flag immediately after result
+                isRecognizing = false;
                 const transcript = event.results[0][0].transcript;
                 updateStatus('You: (processing audio...)');
-                micButton.classList.remove('recording'); // Remove red color quickly
+                micButton.classList.remove('recording');
                 micButton.disabled = true; // Keep mic disabled while processing backend
-                sendTextToBackend(transcript); // Send transcribed text to backend
+                sendTextToBackend(transcript);
             };
 
-            recognition.onerror = (event) => {
+            recInstance.onerror = (event) => {
                 console.error('Speech recognition error:', event.error, event);
-                isRecognizing = false; // Reset flag on error
+                isRecognizing = false;
                 micButton.classList.remove('recording');
                 micButton.disabled = false; // Re-enable button on error
                 if (event.error === 'no-speech') {
@@ -249,69 +240,87 @@
                 } else if (event.error === 'not-allowed') {
                     updateStatus('You: Microphone access denied. Please allow in browser settings.', true);
                 } else if (event.error === 'aborted') {
-                    // This error occurs if we manually call abort()
                     updateStatus('You: Recording stopped.', false);
-                } else if (event.error === 'network') { // Add network error handling
+                } else if (event.error === 'network') {
                     updateStatus('You: Network error during speech recognition. Check your connection.', true);
-                }
-                else {
+                } else {
                     updateStatus(`You: Speech recognition error: ${event.error}`, true);
                 }
             };
 
-            recognition.onend = () => {
+            recInstance.onend = () => {
                 console.log('SpeechRecognition: onend event fired. Recognition session ended.');
-                isRecognizing = false; // Ensure flag is false
-                micButton.classList.remove('recording'); // Ensure button color is reset
-                // Only reset status to "Ready" if the button is not disabled (meaning no backend call is pending)
+                isRecognizing = false;
+                micButton.classList.remove('recording');
                 if (!micButton.disabled) {
                      updateStatus('Bot: Ready.'); 
                 }
             };
-
-        } else {
-            console.log('Web Speech API (webkitSpeechRecognition) IS NOT supported.');
-            updateStatus('Error: Web Speech API not supported in this browser.', true);
-            micButton.disabled = true;
         }
 
         // Mic button click handler
         micButton.addEventListener('click', () => {
             console.log('Mic button clicked. Current isRecognizing:', isRecognizing);
+            
             // Always disable the button immediately to prevent double-clicks
             micButton.disabled = true; 
 
-            if (recognition) {
-                if (isRecognizing) {
-                    console.log('Recognition is active. Stopping via abort().');
+            if (!('webkitSpeechRecognition' in window)) {
+                console.log('Web Speech API (webkitSpeechRecognition) IS NOT supported.');
+                updateStatus('Error: Web Speech API not supported in this browser.', true);
+                micButton.disabled = true; // Keep disabled if not supported
+                return;
+            }
+
+            if (isRecognizing) {
+                console.log('Recognition is active. Stopping via abort().');
+                if (recognition) {
                     recognition.abort(); // Use abort() for a clean stop
-                    // The button will be re-enabled by onerror (if 'aborted') or onend
-                } else {
-                    console.log('Recognition is NOT active. Attempting to start recognition.');
-                    isRecognizing = true; // Set flag immediately before starting
-                    // Use a setTimeout(0) to defer the start call slightly
-                    // This can help with race conditions where the browser's internal state
-                    // hasn't fully reset yet, even if `isRecognizing` is false.
-                    setTimeout(() => {
-                        try {
-                            recognition.start();
-                        } catch (e) {
-                            console.error("Error calling recognition.start() inside setTimeout:", e);
-                            updateStatus('Error starting microphone. Please refresh and try again.', true);
-                            micButton.disabled = false; // Re-enable if start fails
-                            isRecognizing = false; // Reset flag
-                        }
-                    }, 0);
                 }
+                // isRecognizing will be set to false by onerror (aborted) or onend
             } else {
-                console.log('Recognition object does NOT exist. Cannot start/stop.');
-                micButton.disabled = false; // Ensure button is re-enabled if recognition not supported
+                console.log('Recognition is NOT active. Attempting to start recognition.');
+                isRecognizing = true; // Set flag immediately before attempting to start
+
+                // If a previous recognition instance exists, abort it to ensure a clean slate
+                if (recognition) {
+                    console.log('Aborting previous recognition instance before creating new one.');
+                    recognition.abort(); // Ensure any lingering session is stopped
+                    recognition = null; // Clear the old instance
+                }
+
+                // Create a new SpeechRecognition instance for each start attempt
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                setupRecognitionHandlers(recognition); // Attach handlers to the new instance
+
+                // Use a setTimeout(0) to defer the start call slightly
+                // This can help with race conditions where the browser's internal state
+                // hasn't fully reset yet, even if `isRecognizing` is false.
+                setTimeout(() => {
+                    try {
+                        console.log('Calling recognition.start() for new instance.');
+                        recognition.start();
+                    } catch (e) {
+                        console.error("Error calling recognition.start() inside setTimeout:", e);
+                        updateStatus('Error starting microphone. Please refresh and try again.', true);
+                        micButton.disabled = false; // Re-enable if start fails
+                        isRecognizing = false; // Reset flag
+                    }
+                }, 0);
             }
         });
 
         // Initial status
         updateStatus('Bot: Ready.');
         console.log('Initial status set to "Bot: Ready."');
+        // Initial check for Web Speech API support on page load
+        if (!('webkitSpeechRecognition' in window)) {
+            micButton.disabled = true;
+            updateStatus('Error: Web Speech API not supported in this browser.', true);
+        }
     </script>
 </body>
 </html>
