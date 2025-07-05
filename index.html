@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -137,8 +137,8 @@
         const chatMessages = document.getElementById('chat-messages');
         const statusMessage = document.getElementById('status-message');
 
-        let mediaRecorder;
-        let audioChunks = [];
+        let mediaRecorder; // This is not used in this version, as STT is Web Speech API
+        let audioChunks = []; // This is not used in this version, as STT is Web Speech API
         let recognition; // For Web Speech API SpeechRecognition
 
         // Function to display messages in the chat
@@ -213,18 +213,23 @@
         }
 
         // Initialize Web Speech API SpeechRecognition
+        console.log('--- Initializing Web Speech API ---');
         if ('webkitSpeechRecognition' in window) {
+            console.log('Web Speech API (webkitSpeechRecognition) IS supported.');
             recognition = new webkitSpeechRecognition();
             recognition.continuous = false; // Only listen for a single utterance
             recognition.interimResults = false; // Only return final results
             recognition.lang = 'en-US'; // Set language
+            console.log('SpeechRecognition object created:', recognition);
 
             recognition.onstart = () => {
+                console.log('SpeechRecognition: onstart event fired.');
                 updateStatus('You: (listening...)');
                 micButton.classList.add('recording');
             };
 
             recognition.onresult = (event) => {
+                console.log('SpeechRecognition: onresult event fired.');
                 const transcript = event.results[0][0].transcript;
                 updateStatus('You: (processing audio...)');
                 micButton.disabled = true; // Disable mic while processing
@@ -232,7 +237,7 @@
             };
 
             recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
+                console.error('Speech recognition error:', event.error, event);
                 if (event.error === 'no-speech') {
                     updateStatus('You: No speech detected. Please try again.', true);
                 } else if (event.error === 'not-allowed') {
@@ -245,29 +250,36 @@
             };
 
             recognition.onend = () => {
+                console.log('SpeechRecognition: onend event fired.');
                 micButton.classList.remove('recording');
             };
 
         } else {
+            console.log('Web Speech API (webkitSpeechRecognition) IS NOT supported.');
             updateStatus('Error: Web Speech API not supported in this browser.', true);
             micButton.disabled = true;
         }
 
         // Mic button click handler
         micButton.addEventListener('click', () => {
+            console.log('Mic button clicked.');
             if (recognition) {
+                console.log('Recognition object exists.');
                 if (micButton.classList.contains('recording')) {
-                    // If already recording, stop
+                    console.log('Stopping recording.');
                     recognition.stop();
                 } else {
-                    // Start recording
+                    console.log('Starting recording.');
                     recognition.start();
                 }
+            } else {
+                console.log('Recognition object does NOT exist. Cannot start/stop.');
             }
         });
 
         // Initial status
         updateStatus('Bot: Ready.');
+        console.log('Initial status set to "Bot: Ready."');
     </script>
 </body>
 </html>
