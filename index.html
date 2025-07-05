@@ -1,282 +1,273 @@
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Voice Chatbot</title>
-        <!-- Tailwind CSS CDN -->
-        <script src="https://cdn.tailwindcss.com"></script>
-        <!-- Inter Font -->
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-        <style>
-            body {
-                font-family: 'Inter', sans-serif;
-                background-color: #f3f4f6; /* Light gray background */
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                margin: 0;
-                padding: 20px;
-                box-sizing: border-box;
-            }
-            .chat-container {
-                background-color: #ffffff; /* White background for chat */
-                border-radius: 1.5rem; /* More rounded corners */
-                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* Softer shadow */
-                width: 100%;
-                max-width: 600px; /* Max width for desktop */
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-                min-height: 500px; /* Minimum height for better appearance */
-            }
-            .chat-messages {
-                flex-grow: 1;
-                padding: 1.5rem;
-                overflow-y: auto;
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-                scroll-behavior: smooth;
-            }
-            .message {
-                max-width: 80%;
-                padding: 0.75rem 1rem;
-                border-radius: 1rem;
-                word-wrap: break-word;
-            }
-            .user-message {
-                align-self: flex-end;
-                background-color: #3b82f6; /* Blue for user messages */
-                color: white;
-                border-bottom-right-radius: 0.25rem; /* Sharper corner on one side */
-            }
-            .bot-message {
-                align-self: flex-start;
-                background-color: #e5e7eb; /* Light gray for bot messages */
-                color: #374151; /* Darker text for bot */
-                border-bottom-left-radius: 0.25rem; /* Sharper corner on one side */
-            }
-            .input-area {
-                display: flex;
-                padding: 1.5rem;
-                border-top: 1px solid #e5e7eb; /* Light border top */
-                gap: 1rem;
-                align-items: center;
-            }
-            .mic-button {
-                background: linear-gradient(145deg, #60a5fa, #3b82f6); /* Gradient blue */
-                color: white;
-                border: none;
-                border-radius: 9999px; /* Fully rounded */
-                width: 56px; /* Larger button */
-                height: 56px;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                cursor: pointer;
-                transition: all 0.2s ease-in-out;
-                box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); /* Soft shadow */
-                flex-shrink: 0; /* Prevent shrinking */
-            }
-            .mic-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4);
-            }
-            .mic-button:active {
-                transform: translateY(0);
-                box-shadow: 0 2px 5px rgba(59, 130, 246, 0.2);
-            }
-            .mic-button.recording {
-                background: linear-gradient(145deg, #ef4444, #dc2626); /* Red when recording */
-                box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);
-                animation: pulse 1.5s infinite;
-            }
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-                100% { transform: scale(1); }
-            }
-            .loading-indicator {
-                display: none;
-                text-align: center;
-                padding: 1rem;
-                color: #6b7280;
-            }
-            .loading-indicator.active {
-                display: block;
-            }
-            /* Icon for microphone (Font Awesome) */
-            .mic-icon {
-                font-size: 1.5rem;
-            }
-        </style>
-        <!-- Font Awesome for microphone icon -->
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    </head>
-    <body>
-        <div class="chat-container">
-            <div class="chat-messages" id="chat-messages">
-                <!-- Chat messages will be appended here -->
-                <div class="bot-message message">Hello! How can I help you today?</div>
-            </div>
-            <div class="loading-indicator" id="loading-indicator">
-                Thinking...
-            </div>
-            <div class="input-area">
-                <button id="mic-button" class="mic-button">
-                    <i class="fas fa-microphone mic-icon"></i>
-                </button>
-            </div>
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 500px;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background-color: #4f46e5;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            font-weight: bold;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: 70vh; /* Adjust as needed */
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e0e7ff;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .bot-message {
+            background-color: #f3f4f6;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .mic-button {
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 9999px; /* Full rounded for circle */
+            width: 3rem;
+            height: 3rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        .mic-button:hover {
+            background-color: #4338ca;
+        }
+        .mic-button.recording {
+            background-color: #ef4444; /* Red when recording */
+        }
+        .mic-button.recording:hover {
+            background-color: #dc2626;
+        }
+        .status-message {
+            text-align: center;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4f46e5;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            Voice Chatbot
         </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="message-bubble bot-message">Hello! How can I help you today?</div>
+        </div>
+        <div class="status-message" id="status-message"></div>
+        <div class="chat-input-area">
+            <button id="mic-button" class="mic-button">
+                <i class="fas fa-microphone text-xl"></i>
+            </button>
+        </div>
+    </div>
 
-        <script>
-            // DOM Elements
-            const micButton = document.getElementById('mic-button');
-            const chatMessages = document.getElementById('chat-messages');
-            const loadingIndicator = document.getElementById('loading-indicator');
+    <script>
+        // IMPORTANT: Replace this with your actual Vercel function URL once deployed.
+        // It will look like: https://YOUR-VERCEL-PROJECT-NAME.vercel.app/api/chatbot
+        const BACKEND_FUNCTION_URL = 'YOUR_VERCEL_FUNCTION_URL_HERE'; 
 
-            // MediaRecorder variables
-            let mediaRecorder;
-            let audioChunks = [];
-            let isRecording = false;
+        const micButton = document.getElementById('mic-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const statusMessage = document.getElementById('status-message');
 
-            // This URL will be updated later, after you deploy your backend function to Vercel.
-            // It will look something like: https://YOUR-VERCEL-PROJECT-NAME.vercel.app/api/chatbot
-            const BACKEND_FUNCTION_URL = 'https://voice-chatbot-web.vercel.app/api/chatbot'; // <<< IMPORTANT: Will update this later!
+        let mediaRecorder;
+        let audioChunks = [];
+        let recognition; // For Web Speech API SpeechRecognition
 
-            // Function to add messages to the chat display
-            function addMessage(text, sender) {
-                const messageDiv = document.createElement('div');
-                messageDiv.classList.add('message');
-                if (sender === 'user') {
-                    messageDiv.classList.add('user-message');
-                } else {
-                    messageDiv.classList.add('bot-message');
-                }
-                messageDiv.textContent = text;
-                chatMessages.appendChild(messageDiv);
-                // Scroll to the bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Function to display messages in the chat
+        function displayMessage(sender, message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message-bubble');
+            if (sender === 'user') {
+                messageElement.classList.add('user-message');
+            } else {
+                messageElement.classList.add('bot-message');
             }
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
 
-            // Function to show/hide loading indicator
-            function showLoading(show) {
-                if (show) {
-                    loadingIndicator.classList.add('active');
-                } else {
-                    loadingIndicator.classList.remove('active');
+        // Function to update status messages
+        function updateStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.style.color = isError ? '#dc2626' : '#6b7280';
+        }
+
+        // Function to send text to the Vercel backend (LLM + TTS)
+        async function sendTextToBackend(text) {
+            updateStatus('Bot: Thinking...');
+            displayMessage('user', text); // Display user's transcribed text
+
+            try {
+                const response = await fetch(BACKEND_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text }), // Send text directly
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
                 }
-            }
 
-            // Start recording
-            async function startRecording() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
+                const data = await response.json();
+                const botResponseText = data.text;
+                const audioUrl = data.audioUrl;
 
-                    mediaRecorder.ondataavailable = event => {
-                        audioChunks.push(event.data);
+                displayMessage('bot', botResponseText);
+                
+                // Play audio if available
+                if (audioUrl) {
+                    updateStatus('Bot: Speaking...');
+                    const audio = new Audio(audioUrl);
+                    audio.onended = () => {
+                        updateStatus('Bot: Ready.');
+                        micButton.disabled = false; // Re-enable mic after audio plays
                     };
-
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        // Convert Blob to Base64 for sending over JSON
-                        const reader = new FileReader();
-                        reader.readAsDataURL(audioBlob);
-                        reader.onloadend = async () => {
-                            const base64Audio = reader.result.split(',')[1]; // Get base64 string
-                            addMessage('You: (processing audio...)', 'user');
-                            showLoading(true);
-                            await sendAudioToFunction(base64Audio);
-                        };
+                    audio.onerror = (e) => {
+                        console.error('Audio playback error:', e);
+                        updateStatus('Bot: Sorry, audio playback failed. Please try again.', true);
+                        micButton.disabled = false;
                     };
-
-                    mediaRecorder.start();
-                    isRecording = true;
-                    micButton.classList.add('recording');
-                    micButton.innerHTML = '<i class="fas fa-stop mic-icon"></i>'; // Change icon to stop
-                    console.log('Recording started...');
-                } catch (error) {
-                    console.error('Error accessing microphone:', error);
-                    // Using alert for simplicity, consider a custom modal in production for better UX
-                    alert('Could not access microphone. Please ensure it is connected and permissions are granted.');
-                }
-            }
-
-            // Stop recording
-            function stopRecording() {
-                if (mediaRecorder && isRecording) {
-                    mediaRecorder.stop();
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop()); // Stop microphone access
-                    isRecording = false;
-                    micButton.classList.remove('recording');
-                    micButton.innerHTML = '<i class="fas fa-microphone mic-icon"></i>'; // Change icon back to mic
-                    console.log('Recording stopped.');
-                }
-            }
-
-            // Send audio to Backend Function
-            async function sendAudioToFunction(base64Audio) {
-                try {
-                    const response = await fetch(BACKEND_FUNCTION_URL, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ audio: base64Audio }),
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-                    }
-
-                    const data = await response.json();
-                    console.log('Response from function:', data);
-
-                    if (data.text) {
-                        // Update the user's message with the transcribed text
-                        const lastUserMessage = chatMessages.lastChild;
-                        if (lastUserMessage && lastUserMessage.classList.contains('user-message')) {
-                            lastUserMessage.textContent = `You: ${data.text}`;
-                        } else {
-                            addMessage(`You: ${data.text}`, 'user');
-                        }
-                    }
-
-                    if (data.audioBase64) {
-                        const audio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
-                        audio.play();
-                        addMessage(`Bot: ${data.botResponse}`, 'bot');
-                    } else {
-                        addMessage(`Bot: ${data.botResponse || 'No audio response received.'}`, 'bot');
-                    }
-
-                } catch (error) {
-                    console.error('Error sending audio to function:', error);
-                    addMessage('Bot: Sorry, something went wrong. Please try again.', 'bot');
-                } finally {
-                    showLoading(false);
-                }
-            }
-
-            // Event listener for microphone button
-            micButton.addEventListener('click', () => {
-                if (isRecording) {
-                    stopRecording();
+                    audio.play();
                 } else {
-                    startRecording();
+                    updateStatus('Bot: Ready.');
+                    micButton.disabled = false;
                 }
-            });
 
-            // Ensure the page is fully loaded before trying to access elements
-            window.onload = () => {
-                console.log('Page loaded.');
+            } catch (error) {
+                console.error('Error sending text to function:', error);
+                updateStatus('Bot: Sorry, something went wrong. Please try again.', true);
+                micButton.disabled = false;
+            }
+        }
+
+        // Initialize Web Speech API SpeechRecognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false; // Only listen for a single utterance
+            recognition.interimResults = false; // Only return final results
+            recognition.lang = 'en-US'; // Set language
+
+            recognition.onstart = () => {
+                updateStatus('You: (listening...)');
+                micButton.classList.add('recording');
             };
-        </script>
-    </body>
-    </html>
-    
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                updateStatus('You: (processing audio...)');
+                micButton.disabled = true; // Disable mic while processing
+                sendTextToBackend(transcript); // Send transcribed text to backend
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    updateStatus('You: No speech detected. Please try again.', true);
+                } else if (event.error === 'not-allowed') {
+                    updateStatus('You: Microphone access denied. Please allow in browser settings.', true);
+                } else {
+                    updateStatus(`You: Speech recognition error: ${event.error}`, true);
+                }
+                micButton.classList.remove('recording');
+                micButton.disabled = false;
+            };
+
+            recognition.onend = () => {
+                micButton.classList.remove('recording');
+            };
+
+        } else {
+            updateStatus('Error: Web Speech API not supported in this browser.', true);
+            micButton.disabled = true;
+        }
+
+        // Mic button click handler
+        micButton.addEventListener('click', () => {
+            if (recognition) {
+                if (micButton.classList.contains('recording')) {
+                    // If already recording, stop
+                    recognition.stop();
+                } else {
+                    // Start recording
+                    recognition.start();
+                }
+            }
+        });
+
+        // Initial status
+        updateStatus('Bot: Ready.');
+    </script>
+</body>
+</html>

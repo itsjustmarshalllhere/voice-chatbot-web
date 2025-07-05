@@ -1,159 +1,137 @@
-// api/chatbot.js
-    // This file will be deployed as a serverless function on Vercel.
+// This is your Vercel Serverless Function for the chatbot backend.
+// It handles:
+// 1. Receiving text from the frontend.
+// 2. Sending the text to Google Gemini for a conversational response.
+// 3. Sending Gemini's text response to ElevenLabs for Text-to-Speech (TTS).
+// 4. Returning the text response and a URL to the generated audio to the frontend.
 
-    // You will need to install these packages. They will be listed in package.json
-    // and Vercel will install them automatically during deployment.
-    const fetch = require('node-fetch');
-    const FormData = require('form-data');
+// Import necessary modules
+// 'node-fetch' is used for making HTTP requests (e.g., to Google Gemini and ElevenLabs).
+// It's a standard module for fetch API in Node.js environments.
+import fetch from 'node-fetch';
 
-    // API Keys will be set as Environment Variables in Vercel.
-    // We will set these up in Step 3.
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// 'form-data' is typically used for multipart/form-data requests,
+// which was needed for OpenAI Whisper. We'll keep it for now but it might not be strictly
+// necessary if ElevenLabs or future services don't require it.
+// For this updated version, it's not directly used as STT is client-side.
+// import FormData from 'form-data'; // Not strictly needed for this version
+
+// This is the main handler for your Vercel Serverless Function.
+// Vercel automatically calls this function when your API endpoint is accessed.
+export default async function handler(request, response) {
+    // Ensure the request method is POST.
+    // Our frontend sends data via POST.
+    if (request.method !== 'POST') {
+        return response.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    // Extract the text from the request body.
+    // The frontend now sends the transcribed text directly.
+    const userText = request.body.text;
+
+    // Basic validation for the user text.
+    if (!userText) {
+        return response.status(400).json({ error: 'No text provided.' });
+    }
+
+    // --- Retrieve API Keys from Environment Variables ---
+    // These keys are set in your Vercel project settings for security.
+    // DO NOT hardcode your API keys directly in the code!
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-    const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tzpb8grqXNyUt3m'; // Default voice ID
+    const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID;
 
-    // --- OpenAI API Endpoints ---
-    const OPENAI_WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
-    const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
+    // Check if the API keys are set.
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set in environment variables.');
+        return response.status(500).json({ error: 'Server configuration error: Gemini API key missing.' });
+    }
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
+        console.error('ElevenLabs API keys (ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID) are not set in environment variables.');
+        return response.status(500).json({ error: 'Server configuration error: ElevenLabs API key or Voice ID missing.' });
+    }
 
-    // --- ElevenLabs API Endpoint ---
-    const ELEVENLABS_TTS_URL = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
+    let botResponseText = '';
+    let audioUrl = '';
 
-    // Vercel Serverless Function entry point
-    // It's a simple Node.js function that receives req (request) and res (response) objects.
-    module.exports = async (req, res) => {
-        // Allow CORS for your frontend (important for web apps)
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-        // Handle preflight requests for CORS (browser sends an OPTIONS request first)
-        if (req.method === 'OPTIONS') {
-            return res.status(200).send('OK');
-        }
-
-        // Ensure it's a POST request for actual data
-        if (req.method !== 'POST') {
-            return res.status(405).json({ error: 'Method Not Allowed' });
-        }
-
-        try {
-            const { audio: base64Audio } = req.body; // Extract base64 audio from the request body
-
-            if (!base64Audio) {
-                console.error('No audio data received.');
-                return res.status(400).json({ error: 'No audio data received.' });
-            }
-
-            // 1. Convert base64 audio to a Buffer for OpenAI Whisper
-            const audioBuffer = Buffer.from(base64Audio, 'base64');
-
-            // Create FormData for OpenAI Whisper API (multipart/form-data)
-            const formData = new FormData();
-            formData.append('file', audioBuffer, {
-                filename: 'audio.webm', // OpenAI expects a filename
-                contentType: 'audio/webm',
-            });
-            formData.append('model', 'whisper-1'); // Using Whisper model for transcription
-
-            // 2. Send audio to OpenAI Whisper for Speech-to-Text
-            const whisperResponse = await fetch(OPENAI_WHISPER_URL, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${OPENAI_API_KEY}`, // Use your OpenAI API key
-                    ...formData.getHeaders(), // Important for multipart/form-data
-                },
-                body: formData, // Send the audio data
-            });
-
-            if (!whisperResponse.ok) {
-                const errorData = await whisperResponse.json();
-                console.error('OpenAI Whisper API error:', errorData);
-                return res.status(whisperResponse.status).json({ error: `Whisper API error: ${JSON.stringify(errorData)}` });
-            }
-
-            const whisperData = await whisperResponse.json();
-            const transcribedText = whisperData.text; // The text transcribed from your voice
-
-            if (!transcribedText) {
-                console.warn('Whisper did not return any text.');
-                return res.status(200).json({ text: '', botResponse: 'I could not understand your audio. Please try again.' });
-            }
-
-            console.log('Transcribed Text:', transcribedText);
-
-            // 3. Send transcribed text to OpenAI Chat Completion API for a response
-            const chatResponse = await fetch(OPENAI_CHAT_URL, {
+    try {
+        // --- Step 1: Get Chatbot Response from Google Gemini ---
+        // This section sends the user's text to Google Gemini and gets a text response.
+        console.log('Sending text to Google Gemini...');
+        const geminiResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+            {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${OPENAI_API_KEY}`, // Use your OpenAI API key
                 },
                 body: JSON.stringify({
-                    model: 'gpt-3.5-turbo', // Using a common OpenAI chat model
-                    messages: [
-                        { role: 'system', content: 'You are a helpful and friendly chatbot.' },
-                        { role: 'user', content: transcribedText },
-                    ],
-                    max_tokens: 150, // Limit the response length
-                    temperature: 0.7, // Creativity level
+                    contents: [{
+                        role: 'user',
+                        parts: [{ text: userText }],
+                    }],
                 }),
-            });
-
-            if (!chatResponse.ok) {
-                const errorData = await chatResponse.json();
-                console.error('OpenAI Chat API error:', errorData);
-                return res.status(chatResponse.status).json({ error: `Chat API error: ${JSON.stringify(errorData)}` });
             }
+        );
 
-            const chatData = await chatResponse.json();
-            const botResponseText = chatData.choices[0]?.message?.content; // The AI's text response
+        if (!geminiResponse.ok) {
+            const errorData = await geminiResponse.json();
+            console.error('Gemini API error:', JSON.stringify(errorData));
+            // Return a more generic error to the frontend for security/simplicity
+            return response.status(geminiResponse.status).json({ error: `Gemini API error: ${JSON.stringify(errorData)}` });
+        }
 
-            if (!botResponseText) {
-                console.warn('Chat API did not return any response text.');
-                return res.status(200).json({ text: transcribedText, botResponse: 'I could not generate a response. Please try again.' });
-            }
+        const geminiData = await geminiResponse.json();
+        // Extract the text content from Gemini's response
+        botResponseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'I could not generate a response.';
+        console.log('Gemini Bot Response:', botResponseText);
 
-            console.log('Bot Response Text:', botResponseText);
-
-            // 4. Send bot response text to ElevenLabs for Text-to-Speech
-            const elevenLabsResponse = await fetch(ELEVENLABS_TTS_URL, {
+        // --- Step 2: Convert Bot Response to Speech using ElevenLabs ---
+        // This section sends the chatbot's text response to ElevenLabs to get an audio file.
+        console.log('Sending text to ElevenLabs for TTS...');
+        const elevenLabsResponse = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
+            {
                 method: 'POST',
                 headers: {
                     'Accept': 'audio/mpeg', // Request MP3 audio
+                    'xi-api-key': ELEVENLABS_API_KEY,
                     'Content-Type': 'application/json',
-                    'xi-api-key': ELEVENLABS_API_KEY, // Use your ElevenLabs API key
                 },
                 body: JSON.stringify({
                     text: botResponseText,
-                    model_id: 'eleven_monolingual_v1', // Or 'eleven_multilingual_v2' if you prefer
+                    model_id: 'eleven_monolingual_v1', // Or another suitable model like 'eleven_turbo_v2'
                     voice_settings: {
                         stability: 0.5,
                         similarity_boost: 0.75,
                     },
                 }),
-            });
-
-            if (!elevenLabsResponse.ok) {
-                const errorText = await elevenLabsResponse.text();
-                console.error('ElevenLabs TTS API error:', errorText);
-                return res.status(elevenLabsResponse.status).json({ error: `ElevenLabs TTS API error: ${errorText}` });
             }
+        );
 
-            // Get the audio data as a Buffer and convert to Base64
-            const audioBufferFromElevenLabs = await elevenLabsResponse.buffer();
-            const audioBase64 = audioBufferFromElevenLabs.toString('base64');
-
-            // 5. Send back transcribed text, bot response, and base64 audio to the frontend
-            res.status(200).json({
-                text: transcribedText,
-                botResponse: botResponseText,
-                audioBase64: audioBase64,
-            });
-
-        } catch (error) {
-            console.error('Error in chatbot function:', error);
-            res.status(500).json({ error: `Internal Server Error: ${error.message}` });
+        if (!elevenLabsResponse.ok) {
+            const errorText = await elevenLabsResponse.text();
+            console.error('ElevenLabs API error:', elevenLabsResponse.status, errorText);
+            // Return a more generic error to the frontend
+            return response.status(elevenLabsResponse.status).json({ error: `ElevenLabs API error: ${elevenLabsResponse.status} - ${errorText}` });
         }
-    };
-    
+
+        // ElevenLabs returns an audio stream. We need to convert it to a Blob and then a Data URL.
+        const audioBlob = await elevenLabsResponse.blob();
+        audioUrl = URL.createObjectURL(audioBlob); // Create a temporary URL for the audio
+
+        console.log('ElevenLabs audio generated.');
+
+        // --- Step 3: Send Response back to Frontend ---
+        // Send both the text response and the audio URL back to the frontend.
+        response.status(200).json({
+            text: botResponseText,
+            audioUrl: audioUrl,
+        });
+
+    } catch (error) {
+        console.error('Error in chatbot function:', error);
+        // Generic error response for any unexpected issues
+        response.status(500).json({ error: 'An unexpected error occurred in the chatbot function.' });
+    }
+}
