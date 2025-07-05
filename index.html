@@ -181,9 +181,16 @@
                 console.log('Fetch request completed. Response status:', response.status);
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('Backend HTTP error response:', errorData);
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
+                    // Try to parse error response from backend if available
+                    let errorDetails = '';
+                    try {
+                        const errorData = await response.json();
+                        errorDetails = JSON.stringify(errorData);
+                    } catch (e) {
+                        errorDetails = await response.text(); // Fallback to raw text if not JSON
+                    }
+                    const errorMessage = `HTTP error! Status: ${response.status}. Details: ${errorDetails}`;
+                    throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
@@ -213,7 +220,8 @@
 
             } catch (error) {
                 console.error('Error during fetch or processing backend response:', error);
-                updateStatus('Bot: Sorry, something went wrong. Please try again.', true);
+                // Display the specific error message on screen for easier debugging
+                updateStatus(`Error: ${error.message || 'An unknown error occurred.'}`, true);
                 micButton.disabled = false;
             }
         }
