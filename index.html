@@ -137,79 +137,12 @@
         const chatMessages = document.getElementById('chat-messages');
         const statusMessage = document.getElementById('status-message');
 
+        // ... (your existing code above this section) ...
+
         let recognition; // For Web Speech API SpeechRecognition
         let isRecognizing = false; // Flag to track if recognition is active
 
-        // Function to display messages in the chat
-        function displayMessage(sender, message) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message-bubble');
-            if (sender === 'user') {
-                messageElement.classList.add('user-message');
-            } else {
-                messageElement.classList.add('bot-message');
-            }
-            messageElement.textContent = message;
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
-        }
-
-        // Function to update status messages
-        function updateStatus(message, isError = false) {
-            statusMessage.textContent = message;
-            statusMessage.style.color = isError ? '#dc2626' : '#6b7280';
-        }
-
-        // Function to send text to the Vercel backend (LLM + TTS)
-        async function sendTextToBackend(text) {
-            updateStatus('Bot: Thinking...');
-            displayMessage('user', text); // Display user's transcribed text
-
-            try {
-                const response = await fetch(BACKEND_FUNCTION_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ text: text }), // Send text directly
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
-                }
-
-                const data = await response.json();
-                const botResponseText = data.text;
-                const audioUrl = data.audioUrl;
-
-                displayMessage('bot', botResponseText);
-                
-                // Play audio if available
-                if (audioUrl) {
-                    updateStatus('Bot: Speaking...');
-                    const audio = new Audio(audioUrl);
-                    audio.onended = () => {
-                        updateStatus('Bot: Ready.');
-                        micButton.disabled = false; // Re-enable mic after audio plays
-                    };
-                    audio.onerror = (e) => {
-                        console.error('Audio playback error:', e);
-                        updateStatus('Bot: Sorry, audio playback failed. Please try again.', true);
-                        micButton.disabled = false;
-                    };
-                    audio.play();
-                } else {
-                    updateStatus('Bot: Ready.');
-                    micButton.disabled = false;
-                }
-
-            } catch (error) {
-                console.error('Error sending text to function:', error);
-                updateStatus('Bot: Sorry, something went wrong. Please try again.', true);
-                micButton.disabled = false;
-            }
-        }
+        // ... (your displayMessage, updateStatus, sendTextToBackend functions) ...
 
         // Initialize Web Speech API SpeechRecognition
         console.log('--- Initializing Web Speech API ---');
@@ -222,17 +155,19 @@
             console.log('SpeechRecognition object created:', recognition);
 
             recognition.onstart = () => {
-                console.log('SpeechRecognition: onstart event fired.');
+                console.log('SpeechRecognition: onstart event fired. Mic button should be red.');
                 isRecognizing = true; // Set flag to true
                 updateStatus('You: (listening...)');
                 micButton.classList.add('recording');
+                micButton.disabled = false; // Ensure button is re-enabled if it was disabled previously
             };
 
             recognition.onresult = (event) => {
-                console.log('SpeechRecognition: onresult event fired.');
-                isRecognizing = false; // Reset flag
+                console.log('SpeechRecognition: onresult event fired. Processing result.');
+                isRecognizing = false; // Reset flag immediately after result
                 const transcript = event.results[0][0].transcript;
                 updateStatus('You: (processing audio...)');
+                micButton.classList.remove('recording'); // Remove red color quickly
                 micButton.disabled = true; // Disable mic while processing
                 sendTextToBackend(transcript); // Send transcribed text to backend
             };
@@ -240,21 +175,28 @@
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error, event);
                 isRecognizing = false; // Reset flag on error
+                micButton.classList.remove('recording');
+                micButton.disabled = false;
                 if (event.error === 'no-speech') {
                     updateStatus('You: No speech detected. Please try again.', true);
                 } else if (event.error === 'not-allowed') {
                     updateStatus('You: Microphone access denied. Please allow in browser settings.', true);
-                } else {
+                } else if (event.error === 'aborted') {
+                    // This error occurs if we manually call abort()
+                    updateStatus('You: Recording stopped.', false);
+                }
+                else {
                     updateStatus(`You: Speech recognition error: ${event.error}`, true);
                 }
-                micButton.classList.remove('recording');
-                micButton.disabled = false;
             };
 
             recognition.onend = () => {
-                console.log('SpeechRecognition: onend event fired.');
-                isRecognizing = false; // Reset flag
-                micButton.classList.remove('recording');
+                console.log('SpeechRecognition: onend event fired. Recognition session ended.');
+                // We typically set isRecognizing to false here, but also ensure it's false on result/error.
+                // This prevents race conditions or lingering 'true' state.
+                isRecognizing = false;
+                micButton.classList.remove('recording'); // Ensure button color is reset
+                // Do NOT re-enable micButton.disabled here, as sendTextToBackend handles that.
             };
 
         } else {
@@ -265,16 +207,22 @@
 
         // Mic button click handler
         micButton.addEventListener('click', () => {
-            console.log('Mic button clicked. isRecognizing:', isRecognizing);
+            console.log('Mic button clicked. Current isRecognizing:', isRecognizing);
             if (recognition) {
                 if (isRecognizing) {
-                    console.log('Stopping recording (recognition already active).');
-                    recognition.stop();
+                    console.log('Recognition is active. Stopping via abort().');
+                    // If already recognizing, stop it forcefully
+                    recognition.abort(); // Use abort() for a clean stop
+                    // isRecognizing will be set to false by onerror (aborted) or onend
                 } else {
-                    console.log('Starting recording (recognition not active).');
-                    // Important: Request microphone permission here if not already granted.
-                    // The 'start' method itself will trigger the permission prompt.
-                    recognition.start();
+                    // Only start if not currently recognizing and button is not disabled for processing
+                    if (!micButton.disabled) {
+                        console.log('Recognition is NOT active. Starting recognition.');
+                        // Important: Request microphone permission here if not already granted.
+                        recognition.start();
+                    } else {
+                        console.log('Mic button is disabled, likely processing previous request. Cannot start.');
+                    }
                 }
             } else {
                 console.log('Recognition object does NOT exist. Cannot start/stop.');
@@ -285,6 +233,3 @@
         updateStatus('Bot: Ready.');
         console.log('Initial status set to "Bot: Ready."');
     </script>
-</body>
-</html>
-
