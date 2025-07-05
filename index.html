@@ -137,9 +137,8 @@
         const chatMessages = document.getElementById('chat-messages');
         const statusMessage = document.getElementById('status-message');
 
-        let mediaRecorder; // This is not used in this version, as STT is Web Speech API
-        let audioChunks = []; // This is not used in this version, as STT is Web Speech API
         let recognition; // For Web Speech API SpeechRecognition
+        let isRecognizing = false; // Flag to track if recognition is active
 
         // Function to display messages in the chat
         function displayMessage(sender, message) {
@@ -224,12 +223,14 @@
 
             recognition.onstart = () => {
                 console.log('SpeechRecognition: onstart event fired.');
+                isRecognizing = true; // Set flag to true
                 updateStatus('You: (listening...)');
                 micButton.classList.add('recording');
             };
 
             recognition.onresult = (event) => {
                 console.log('SpeechRecognition: onresult event fired.');
+                isRecognizing = false; // Reset flag
                 const transcript = event.results[0][0].transcript;
                 updateStatus('You: (processing audio...)');
                 micButton.disabled = true; // Disable mic while processing
@@ -238,6 +239,7 @@
 
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error, event);
+                isRecognizing = false; // Reset flag on error
                 if (event.error === 'no-speech') {
                     updateStatus('You: No speech detected. Please try again.', true);
                 } else if (event.error === 'not-allowed') {
@@ -251,6 +253,7 @@
 
             recognition.onend = () => {
                 console.log('SpeechRecognition: onend event fired.');
+                isRecognizing = false; // Reset flag
                 micButton.classList.remove('recording');
             };
 
@@ -262,14 +265,15 @@
 
         // Mic button click handler
         micButton.addEventListener('click', () => {
-            console.log('Mic button clicked.');
+            console.log('Mic button clicked. isRecognizing:', isRecognizing);
             if (recognition) {
-                console.log('Recognition object exists.');
-                if (micButton.classList.contains('recording')) {
-                    console.log('Stopping recording.');
+                if (isRecognizing) {
+                    console.log('Stopping recording (recognition already active).');
                     recognition.stop();
                 } else {
-                    console.log('Starting recording.');
+                    console.log('Starting recording (recognition not active).');
+                    // Important: Request microphone permission here if not already granted.
+                    // The 'start' method itself will trigger the permission prompt.
                     recognition.start();
                 }
             } else {
@@ -283,3 +287,4 @@
     </script>
 </body>
 </html>
+
