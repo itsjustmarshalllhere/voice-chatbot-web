@@ -165,6 +165,10 @@
             updateStatus('Bot: Thinking...');
             displayMessage('user', text); // Display user's transcribed text
 
+            console.log('--- Sending fetch request to backend ---');
+            console.log('URL:', BACKEND_FUNCTION_URL);
+            console.log('Payload:', { text: text });
+
             try {
                 const response = await fetch(BACKEND_FUNCTION_URL, {
                     method: 'POST',
@@ -174,8 +178,11 @@
                     body: JSON.stringify({ text: text }), // Send text directly
                 });
 
+                console.log('Fetch request completed. Response status:', response.status);
+                
                 if (!response.ok) {
                     const errorData = await response.json();
+                    console.error('Backend HTTP error response:', errorData);
                     throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
                 }
 
@@ -205,7 +212,7 @@
                 }
 
             } catch (error) {
-                console.error('Error sending text to function:', error);
+                console.error('Error during fetch or processing backend response:', error);
                 updateStatus('Bot: Sorry, something went wrong. Please try again.', true);
                 micButton.disabled = false;
             }
@@ -241,9 +248,10 @@
                     updateStatus('You: Microphone access denied. Please allow in browser settings.', true);
                 } else if (event.error === 'aborted') {
                     updateStatus('You: Recording stopped.', false);
-                } else if (event.error === 'network') {
+                } else if (event.error === 'network') { // Add network error handling
                     updateStatus('You: Network error during speech recognition. Check your connection.', true);
-                } else {
+                }
+                else {
                     updateStatus(`You: Speech recognition error: ${event.error}`, true);
                 }
             };
