@@ -1,7 +1,4 @@
-// This is your Vercel Serverless Function for the chatbot backend.
-// It handles:
-// 1. Receiving text from the frontend.
-// 2. Sending the text to Google Gemini for a conversational response.
+// This is your Vercel Serverless Function forr a conversational response.
 // 3. Sending Gemini's text response to ElevenLabs for Text-to-Speech (TTS).
 // 4. Returning the text response and a URL to the generated audio to the frontend.
 
